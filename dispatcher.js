@@ -65,7 +65,7 @@ var invariant = function(condition, error_message, format, a, b, c, d, e, f) {
 };
 
 /**
-* MeteorFlux.Dispatcher is used to broadcast payloads to registered callbacks.
+* @summary MeteorFlux.Dispatcher is used to broadcast payloads to registered callbacks.
 */
 
 MeteorFlux.Dispatcher = function(){
@@ -78,7 +78,7 @@ MeteorFlux.Dispatcher = function(){
 
 
 /**
-* Registers a callback to be invoked with every dispatched payload. Returns
+* @summary Registers a callback to be invoked with every dispatched payload. Returns
 * a token that can be used with `waitFor()`.
 *
 * @param {function} callback
@@ -91,7 +91,7 @@ MeteorFlux.Dispatcher.prototype.register = function(callback) {
 };
 
 /**
-* Removes a callback based on its token.
+* @summary Removes a callback based on its token.
 *
 * @param {string} id
 */
@@ -106,7 +106,7 @@ MeteorFlux.Dispatcher.prototype.unregister = function(id) {
 };
 
 /**
-* Waits for the callbacks specified to be invoked before continuing execution
+* @summary Waits for the callbacks specified to be invoked before continuing execution
 * of the current callback. This method should only be used by a callback in
 * response to a dispatched payload.
 *
@@ -141,17 +141,18 @@ MeteorFlux.Dispatcher.prototype.waitFor = function(ids) {
 };
 
 /**
-* Dispatches a payload to all registered callbacks.
-*
-* @param {object} payload
+ * @summary Dispatches a payload to all registered callbacks.
+ *
+ * @param {(string|object)} actionTypeOrPayload - actionType to invoke or the payload (for backwards compatability)
+ * @param {Any} [payload]
 */
-MeteorFlux.Dispatcher.prototype.dispatch = function(payload) {
+MeteorFlux.Dispatcher.prototype.dispatch = function(/* arguments */) {
   invariant(
     !this._isDispatching,
     'dispatcher-cant-dispatch-while-dispatching',
     'Dispatch.dispatch(...): Cannot dispatch in the middle of a dispatch.'
   );
-  this._startDispatching(payload);
+  this._startDispatching.apply(this, arguments);
   try {
     for (var id in this._callbacks) {
       if (this._isPending[id]) {
@@ -165,7 +166,7 @@ MeteorFlux.Dispatcher.prototype.dispatch = function(payload) {
 };
 
 /**
-* Is this MeteorFlux.Dispatcher currently dispatching.
+* @summary Is this MeteorFlux.Dispatcher currently dispatching.
 *
 * @return {boolean}
 */
@@ -174,60 +175,76 @@ MeteorFlux.Dispatcher.prototype.isDispatching = function() {
 };
 
 /**
-* Call the callback stored with the given id. Also do some internal
+* @summary Call the callback stored with the given id. Also do some internal
 * bookkeeping.
 *
 * @param {string} id
 * @internal
 */
 MeteorFlux.Dispatcher.prototype._invokeCallback = function(id) {
-  this._isPending[id] = true;
-  this._callbacks[id](this._pendingPayload);
-  this._isHandled[id] = true;
+  var self = this;
+  self._isPending[id] = true;
+
+  // Make sure _pendingActionType is set for backwards compatability, if not
+  // use old callback
+  self._callbacks[id].apply(self, self._pendingPayload);
+
+  self._isHandled[id] = true;
 };
 
+
 /**
-* Set up bookkeeping needed when dispatching.
+* @summary Set up bookkeeping needed when dispatching.
 *
-* @param {object} payload
+* @param {(string|object)} actionTypeOrPayload - actionType to invoke or the payload (for backwards compatability)
+* @param {Any} [payload]
 * @internal
 */
-MeteorFlux.Dispatcher.prototype._startDispatching = function(payload) {
+MeteorFlux.Dispatcher.prototype._startDispatching = function(/* arguments */) {
+  var self = this;
+  var args = Array.prototype.slice.call(arguments);
+  // TODO: Stop the leakage
+  // https://github.com/petkaantonov/bluebird/wiki/Optimization-killers#3-managing-arguments
+
   for (var id in this._callbacks) {
-    this._isPending[id] = false;
-    this._isHandled[id] = false;
+    self._isPending[id] = false;
+    self._isHandled[id] = false;
   }
-  this._pendingPayload = payload;
-  this._isDispatching = true;
+
+  self._pendingPayload = args;
+
+  self._isDispatching = true;
 };
 
 /**
-* Clear bookkeeping used for dispatching.
-*
-* @internal
-*/
+ * @summary Clear bookkeeping used for dispatching.
+ *
+ * @internal
+ */
 MeteorFlux.Dispatcher.prototype._stopDispatching = function() {
-  this._pendingPayload = null;
-  this._isDispatching = false;
+  var self = this;
+  self._pendingPayload = null;
+  self._isDispatching = false;
 };
 
 
 /**
-* Reset everything. Created for testing purposes
+* @summary Reset everything. Created for testing purposes
 *
 */
 MeteorFlux.Dispatcher.prototype.reset = function() {
-  this._callbacks = {};
-  this._isPending = {};
-  this._isHandled = {};
-  this._isDispatching = false;
-  this._pendingPayload = null;
+  var self = this;
+  self._callbacks = {};
+  self._isPending = {};
+  self._isHandled = {};
+  self._isDispatching = false;
+  self._pendingPayload = null;
 };
 
-/**
-* The main Dispatcher instance that clients will deal with
-*
-* @exports Dispatcher
+ /**
+ * The main Dispatcher instance that clients will deal with
+ *
+ * @exports Dispatcher
 */
 
 Dispatcher = new MeteorFlux.Dispatcher();

@@ -15,10 +15,38 @@ var mockCallback = function( name ) {
     return func;
 };
 
+var newMockCallback = function(action, name) {
+    var name = name;
+    var action = action;
+
+    var funcs = {};
+    funcs[name] = {};
+    funcs[name][action] = [];
+
+    var func = function(action, payload ) {
+        if(funcs[name][action]) {
+            funcs[name][action].push(payload);
+        }
+    };
+
+    func.calls = funcs[name][action];
+    func.reset = function() {
+        this.calls = [];
+    };
+
+    return func;
+};
+
 var setup = function() {
     dispatcher = new MeteorFlux.Dispatcher();
     callbackA = mockCallback("A");
     callbackB = mockCallback("B");
+};
+
+var newSetup = function() {
+    dispatcher = new MeteorFlux.Dispatcher();
+    callbackA = newMockCallback("actionA", "A");
+    callbackB = newMockCallback("actionB", "B");
 };
 
 var teardown = function() {
@@ -40,6 +68,28 @@ Tinytest.add('MeteorFlux - Tests - Test mock callback functions', function(test)
 
     var payload_2 = {};
     callbackA(payload_2);
+    test.equal(callbackA.calls.length, 2);
+    test.equal(callbackA.calls[1], payload_2);
+
+    callbackA.reset();
+    test.equal(callbackA.calls.length, 0);
+
+    teardown();
+});
+
+Tinytest.add('MeteorFlux - Tests - Test new mock callback functions', function(test) {
+    newSetup();
+
+    test.equal( typeof callbackA, "function");
+    test.equal( typeof callbackA.calls, "object");
+
+    var payload = {};
+    callbackA("actionA", payload);
+    test.equal(callbackA.calls.length, 1);
+    test.equal(callbackA.calls[0], payload);
+
+    var payload_2 = {};
+    callbackA("actionA", payload_2);
     test.equal(callbackA.calls.length, 2);
     test.equal(callbackA.calls[1], payload_2);
 
@@ -83,7 +133,7 @@ Tinytest.add('MeteorFlux - Dispatcher - It should get reseted correctly', functi
     teardown();
 });
 
-Tinytest.add('MeteorFlux - Dispatcher - It should execute all subscriber callbacks', function (test) {
+Tinytest.add('MeteorFlux - Dispatcher - It should execute all subscriber callbacks -Old way', function (test) {
     setup();
 
     dispatcher.register(callbackA);
@@ -106,6 +156,39 @@ Tinytest.add('MeteorFlux - Dispatcher - It should execute all subscriber callbac
 
     test.equal(callbackB.calls.length, 2);
     test.equal(callbackB.calls[1], payload_2);
+
+    teardown();
+});
+
+Tinytest.add('MeteorFlux - Dispatcher - It should execute all subscriber callbacks -New way', function (test) {
+    newSetup();
+
+    dispatcher.register(callbackA);
+    dispatcher.register(callbackB);
+
+    var payload = {};
+    dispatcher.dispatch('actionA', payload);
+
+    test.equal(callbackA.calls.length, 1);
+    test.equal(callbackA.calls[0], payload);
+
+    test.equal(callbackB.calls.length, 0);
+
+    var payload_2 = {};
+    dispatcher.dispatch('actionA', payload_2);
+
+    test.equal(callbackA.calls.length, 2);
+    test.equal(callbackA.calls[1], payload_2);
+
+    test.equal(callbackB.calls.length, 0);
+
+    var payload_3 = {};
+    dispatcher.dispatch('actionB', payload_3);
+
+    test.equal(callbackA.calls.length, 2);
+
+    test.equal(callbackB.calls.length, 1);
+    test.equal(callbackB.calls[0], payload_3);
 
     teardown();
 });
